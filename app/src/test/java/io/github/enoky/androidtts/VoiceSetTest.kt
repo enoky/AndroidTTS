@@ -2,7 +2,9 @@ package io.github.enoky.androidtts
 
 import io.github.enoky.androidtts.VoiceCatalog.Entry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Locale
 
@@ -37,6 +39,26 @@ class VoiceSetTest {
         val set = VoiceSet(listOf("Zoey", "Bea"), emptyMap())
         assertEquals("Bea", set.defaultFor("en", null))
         assertNull(VoiceSet(emptyList(), emptyMap()).defaultFor("en", null))
+    }
+
+    @Test
+    fun tellsImportedVoicesFromCatalogOnes() {
+        val set = VoiceSet(
+            listOf("default", "Me", "Zoey"),
+            mapOf(
+                "Me" to Entry("Me", "me.safetensors", imported = true),
+                "Zoey" to Entry("Zoey", "voices/a.safetensors", "en"),
+            ),
+        )
+        assertTrue(set.isImported("Me"))
+        assertFalse(set.isCatalog("Me"))
+        assertTrue(set.isCatalog("Zoey"))
+        assertFalse(set.isImported("default"))
+        assertFalse(set.isCatalog("default"))
+        assertEquals(1, set.catalogCount)
+        // A cloned voice has no language in the catalog's sense: it is offered in every one.
+        assertEquals(listOf("default", "Me"), set.forLanguage("fr"))
+        assertEquals("Me", set.defaultFor("fr", "Me"))
     }
 
     @Test

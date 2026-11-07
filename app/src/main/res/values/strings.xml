@@ -6,19 +6,24 @@
     <string name="download">Download the voice model (Phonon 31M, English)</string>
     <string name="download_again">Download the voice model again</string>
     <string name="download_voices">Download all voices</string>
+    <string name="import_voice">Import a voice file (such as your cloned voice)</string>
     <string name="cancel_download">Cancel download</string>
     <string name="play_sample">Play a sample</string>
     <string name="import_folder">Import a checkpoint folder instead</string>
     <string name="system_settings">Open the system text-to-speech settings</string>
     <string name="remove_voices">Remove downloaded voices</string>
     <string name="remove">Remove</string>
-    <string name="help">1. Download the voice model (a one-time download of a few tens of megabytes; Wi-Fi recommended). The internet is used only for downloads.\n2. Optionally, download all voices from Gradium\'s voice catalog, and pick the one you like.\n3. Open the system text-to-speech settings and choose this app as the preferred engine.\n\nTo use another Phonon checkpoint, put its config.json, tokenizer.json, model.q8.gguf (or model.safetensors) and voices/ in a folder on the phone and import it. Downloaded voices are kept.</string>
+    <string name="help">1. Download the voice model (a one-time download of a few tens of megabytes; Wi-Fi recommended). The internet is used only for downloads.\n2. Optionally, download all voices from Gradium\'s voice catalog, or import your own: clone your voice in Gradium Studio, tap \"Download for Phonon\", then import that file here. Tap a voice to make it the default.\n3. Open the system text-to-speech settings and choose this app as the preferred engine.\n\nTo use another Phonon checkpoint, put its config.json, tokenizer.json, model.q8.gguf (or model.safetensors) and voices/ in a folder on the phone and import it. Downloaded voices are kept.</string>
     <string name="sample_text">Hello! This is Phonon, speaking on your phone, without the internet.</string>
 
     <string name="voices_header">Voices (%1$d)</string>
     <string name="voices_header_none">Voices</string>
     <string name="voices_hint">Tap a voice to hear it and make it the default; ▶ only plays it. Apps that are already open switch to a new default the next time they set their language, or when restarted.</string>
     <string name="voice_built_in">Built into the model</string>
+    <string name="voice_yours">Your voice</string>
+    <string name="remove_symbol">✕</string>
+    <string name="remove_voice">Remove %1$s</string>
+    <string name="remove_voice_confirm">Remove the voice “%1$s”? You can import its file again later.</string>
     <string name="play_symbol">▶</string>
     <string name="play_voice">Play %1$s</string>
 
@@ -43,6 +48,18 @@
     <string name="voices_step">%1$d of %2$d: %3$s</string>
     <string name="voices_installing">Loading the model with the new voices…</string>
     <string name="voices_none_in_catalog">The voice catalog has no voices in %1$s.</string>
+
+    <string name="import_voice_title">Name this voice</string>
+    <string name="import_voice_message">This is how it appears in the voice list, and to apps.</string>
+    <string name="import_voice_ok">Import</string>
+    <string name="voice_name_invalid">Use a name without / or \\ that does not start with a dot.</string>
+    <string name="voice_name_taken">There is already a voice called %1$s. Pick another name, or remove that voice first.</string>
+    <string name="importing_voice">Importing your voice</string>
+    <string name="import_voice_failed">Importing the voice failed: %1$s</string>
+    <string name="voice_file_unreadable">cannot read that file</string>
+    <string name="voice_file_too_big">that file is too big to be a voice file</string>
+    <string name="voice_file_invalid">that is not a Phonon voice file. Pick the .safetensors file that Gradium Studio\'s \"Download for Phonon\" gives you</string>
+    <string name="voice_imported">Added your voice “%1$s”. Tap it in the list to hear it and make it the default.</string>
 
     <plurals name="voices_all_installed">
         <item quantity="one">The catalog\'s %1$d voice for this model is installed already.</item>

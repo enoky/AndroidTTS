@@ -1,15 +1,17 @@
 package io.github.enoky.androidtts
 
 import android.content.Context
+import android.net.Uri
 import kotlin.concurrent.thread
 
 /**
- * The one download that runs at a time, of the model or of the voices, and how far it got, for
- * the settings screen to show. It runs on its own thread, so it carries on while the screen is
- * rotated or left; both downloads pick up where they stopped when started again.
+ * The one job that runs at a time, a download of the model or of the voices or the import of a
+ * voice file, and how far it got, for the settings screen to show. Each reloads the model, so
+ * they never overlap. It runs on its own thread, so it carries on while the screen is rotated or
+ * left; both downloads pick up where they stopped when started again.
  */
 object Downloads {
-    enum class Job { MODEL, VOICES }
+    enum class Job { MODEL, VOICES, IMPORT }
 
     sealed class State {
         object Idle : State()
@@ -38,6 +40,11 @@ object Downloads {
     /** Download the catalog voices the installed model speaks and reload it with them. */
     fun downloadVoices(context: Context) = start(context, Job.VOICES) { app ->
         VoiceDownload.run(app, ::isCancelled) { detail, done, total -> report(Job.VOICES, detail, done, total) }
+    }
+
+    /** Import the voice file at [uri] as the voice [name] and reload the model with it. */
+    fun importVoice(context: Context, uri: Uri, fileName: String?, name: String) = start(context, Job.IMPORT) { app ->
+        VoiceImport.run(app, uri, fileName, name) { detail, done, total -> report(Job.IMPORT, detail, done, total) }
     }
 
     /** Stop the running download. What was installed before stays. */
