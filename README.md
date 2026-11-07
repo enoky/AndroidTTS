@@ -111,7 +111,10 @@ The debug build installs beside the release build, as "AndroidTTS (debug)".
 
 `.github/workflows/android.yml` runs on every push. It compiles the Kotlin and runs the unit
 tests, builds `libptts_ffi.so`, then builds both APKs and uploads them as the `AndroidTTS-apk`
-artifact. Pushing a `v*` tag also publishes the release APK on the Releases page.
+artifact. For a `v*` tag, it also attaches the release APK to that tag's release, as
+`AndroidTTS-<tag>.apk`. Publish the release on GitHub (Releases → Draft a new release, new tag
+such as `v0.2.0`) and the APK appears on it a few minutes later. Pushing the tag with git works
+too, and then CI creates the release itself.
 
 ### Signing
 

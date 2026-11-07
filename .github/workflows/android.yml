@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  # A release published on GitHub, whose tag it creates, gets the APK attached (see "release").
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -107,8 +110,10 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
-  # Pushing a tag such as v0.1.0 publishes the APK as a GitHub release, which a phone can download
-  # directly (an Actions artifact comes zipped and needs a GitHub login).
+  # Attaches the APK to the release of a v* tag, which a phone can download directly (an Actions
+  # artifact comes zipped and needs a GitHub login). Publishing a release on GitHub creates the tag
+  # and the release; pushing a tag creates the release here. Both may run for one tag, so the
+  # asset has a fixed name and the second upload replaces the first.
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -122,9 +127,15 @@ jobs:
         with:
           name: AndroidTTS-apk
           path: dist
-      - name: Create the release
+      - name: Attach the APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "dist/AndroidTTS-${GITHUB_RUN_NUMBER}.apk" \
-            --repo "$GITHUB_REPOSITORY" --title "AndroidTTS $GITHUB_REF_NAME" --generate-notes
+          apk="AndroidTTS-$GITHUB_REF_NAME.apk"
+          cp "dist/AndroidTTS-${GITHUB_RUN_NUMBER}.apk" "$apk"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$apk" \
+              --repo "$GITHUB_REPOSITORY" --title "AndroidTTS $GITHUB_REF_NAME" --generate-notes
+          fi
