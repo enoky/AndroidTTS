@@ -10,8 +10,11 @@ Once installed and chosen as the preferred engine, every app that speaks through
 - **Runtime:** Phonon's Rust library `libptts_ffi.so`, built from
   [gradium-ai/xn-ptts](https://github.com/gradium-ai/xn-ptts) at commit `e5110afd`, running on
   the CPU. Audio streams to Android as it is generated, at 24 kHz.
-- **Privacy:** the internet permission is used only for that one model download. Text is never
-  sent anywhere.
+- **Voices:** the model's built-in voice, plus, with one tap, every voice in Gradium's
+  [voice catalog](https://huggingface.co/gradium/phonon-voices) that the model can speak. Pick
+  the default voice in the app.
+- **Privacy:** the internet permission is used only to download the model and voices. Text is
+  never sent anywhere.
 
 ## Install on a Galaxy S21 Ultra
 
@@ -23,7 +26,9 @@ Once installed and chosen as the preferred engine, every app that speaks through
 3. **Download the voice.** Open **AndroidTTS** and tap **Download the voice model**. This is a
    one-time download of a few tens of megabytes. When the status says *Ready*, tap
    **Play a sample**.
-4. **Make it the system voice.** Tap **Open the system text-to-speech settings**, or go to
+4. **Get more voices (optional).** Tap **Download all voices**, then tap a voice in the list to
+   hear it and make it the default. ▶ only plays it.
+5. **Make it the system voice.** Tap **Open the system text-to-speech settings**, or go to
    Settings → General management → Text-to-speech output (search Settings for
    "text-to-speech" if One UI names it differently). Set **Preferred engine** to AndroidTTS
    and the language to English. For TalkBack, also check TalkBack → Settings →
@@ -42,6 +47,35 @@ Once installed and chosen as the preferred engine, every app that speaks through
 - Phonon's Snapdragon NPU path (QNN) is not used. It needs a model bundle compiled for each
   chip, has no CPU fallback, and would not run on Exynos units at all.
 - Android 11 through 14, everything the S21 has run, is supported (minimum is Android 7.0).
+
+## Voices
+
+**Download all voices** fetches every voice in Gradium's catalog
+[`gradium/phonon-voices`](https://huggingface.co/gradium/phonon-voices) that is in a language
+the model speaks (English for Phonon 31M), plus any with no language listed. It uses the same
+pinned catalog commit (`da6c9ec0`) as upstream's runtime. Each voice is one safetensors file.
+The app checks free space before starting and shows the total size as it downloads.
+
+How it behaves:
+
+- **Checked:** every file is verified against the size and SHA-256 Hugging Face lists for it.
+- **Resumable:** files are kept in a staging folder until all are in. If you cancel, lose the
+  network or the app is killed, tapping the button again picks up from the files already
+  checked. Voices already installed are never downloaded twice.
+- **Partial failures don't stop the rest:** a voice that can't be fetched after three tries is
+  skipped and named in the result. Tap the button again to retry it.
+- **Safe to install:** the model reloads once with all the new voices. Phonon loads every voice
+  file with the model, so one bad file would stop the engine; if the reload fails, the new
+  voices are removed and the previous voices come back.
+- **Kept:** "Download the voice model again" and folder imports keep downloaded voices, unless
+  the new checkpoint has its own voice of the same name.
+- **Removable:** **Remove downloaded voices** deletes them all; the built-in voice stays.
+
+Apps see each voice as `<language>-<name>`, such as `en-Zoey`, with the catalog's accent as its
+locale (en-US, en-GB, …), so apps that list voices by locale can show them properly. Android's
+system settings have no voice picker for an engine, so the voice an app gets when it doesn't
+ask for one is the one chosen in this app. Apps that are already running switch to a newly
+chosen voice the next time they set their language, or when restarted.
 
 ## Limitations
 
@@ -99,8 +133,9 @@ and out of the repo. Local builds read the same names from environment variables
 
 ## Tests
 
-- `./gradlew testDebugUnitTest`: JVM tests for how the download picks, parses and checks the
-  model files.
+- `./gradlew testDebugUnitTest`: JVM tests for picking, parsing and checking the model files;
+  reading and filtering the voice catalog (languages, name clashes, unsafe names and paths);
+  which voice each language gets; and installing, removing and carrying over voice files.
 - `./gradlew connectedDebugAndroidTest`: drives the installed engine through `TextToSpeech` on
   a connected phone or emulator, the way any app would. With the model downloaded in the debug
   app, it writes WAV files and checks that `QUEUE_FLUSH` cuts speech short. Add
@@ -113,8 +148,14 @@ and out of the repo. Local builds read the same names from environment variables
 |---|---|
 | `app/src/main/java/.../PhononService.kt` | The `TextToSpeechService` Android binds to |
 | `app/src/main/java/.../Model.kt` | Installs, loads and shares the checkpoint |
-| `app/src/main/java/.../ModelDownload.kt` | Downloads Phonon 31M from Hugging Face, verifying sizes and SHA-256 |
-| `app/src/main/java/.../SettingsActivity.kt` | The app screen: download, sample, folder import |
+| `app/src/main/java/.../Hub.kt` | Hugging Face listings and checked, retried downloads |
+| `app/src/main/java/.../ModelDownload.kt` | Which files make the Phonon 31M checkpoint |
+| `app/src/main/java/.../VoiceCatalog.kt` | Reads the voice catalog and picks the voices a model can speak |
+| `app/src/main/java/.../VoiceDownload.kt` | Downloads catalog voices, resumably, and installs them |
+| `app/src/main/java/.../VoiceStore.kt` | The installed catalog voices: files and records |
+| `app/src/main/java/.../VoiceSet.kt` | Which voices each language offers, and the default |
+| `app/src/main/java/.../Downloads.kt` | Runs one download at a time and reports progress |
+| `app/src/main/java/.../SettingsActivity.kt` | The app screen: downloads, voice list, samples, folder import |
 | `app/src/main/java/.../DataActivity.kt` | Answers the system settings' data and sample-text queries |
 | `app/src/main/java/.../PhononTTS.kt` | JNA binding to `libptts_ffi.so` |
 | `scripts/build-native.sh` | Builds `libptts_ffi.so` from xn-ptts at the pinned commit |

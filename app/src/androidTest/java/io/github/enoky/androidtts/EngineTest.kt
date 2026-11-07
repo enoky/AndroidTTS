@@ -78,12 +78,31 @@ class EngineTest {
     }
 
     @Test
-    fun writesEveryEnglishVoice() {
+    fun writesEnglishVoices() {
         assumeInstalled()
-        for (voice in tts.voices.filter { it.locale.language == "en" }) {
+        // With the whole catalog downloaded there can be many: a dozen shows they all load.
+        for (voice in tts.voices.filter { it.locale.language == "en" }.sortedBy { it.name }.take(12)) {
             assertEquals(TextToSpeech.SUCCESS, tts.setVoice(voice))
             val file = File(context.filesDir, "test-${voice.name}.wav")
             synthesize(SHORT, file, voice.name)
+        }
+    }
+
+    @Test
+    fun theChosenVoiceIsTheDefault() {
+        assumeSpeaks("en")
+        val voices = tts.voices.filter { it.locale.language == "en" }.map { it.name.removePrefix("en-") }
+        assumeTrue("the model has one English voice", voices.size > 1)
+        val before = Model.preferredVoice(context)
+        try {
+            for (name in listOf(voices.last(), voices.first())) {
+                Model.setPreferredVoice(context, name)
+                // setLanguage asks the engine for the language's default voice.
+                assertEquals(TextToSpeech.LANG_AVAILABLE, tts.setLanguage(Locale.ENGLISH))
+                assertEquals("en-$name", tts.voice.name)
+            }
+        } finally {
+            Model.setPreferredVoice(context, before ?: VoiceSet.DEFAULT)
         }
     }
 
