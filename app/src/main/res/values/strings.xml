@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app_name is set per build type in app/build.gradle.kts. -->
+    <string name="subtitle">On-device text-to-speech with Gradium Phonon 31M (English). Speech never leaves the phone.</string>
+
+    <string name="download">Download the voice model (Phonon 31M, English)</string>
+    <string name="download_again">Download the voice model again</string>
+    <string name="cancel_download">Cancel download</string>
+    <string name="play_sample">Play a sample</string>
+    <string name="import_folder">Import a checkpoint folder instead</string>
+    <string name="system_settings">Open the system text-to-speech settings</string>
+    <string name="help">1. Download the voice model (a one-time download of a few tens of megabytes; Wi-Fi recommended). The internet is used only for this.\n2. Tap \"Play a sample\" to check it.\n3. Open the system text-to-speech settings and choose this app as the preferred engine.\n\nTo use another Phonon checkpoint, put its config.json, tokenizer.json, model.q8.gguf (or model.safetensors) and voices/ in a folder on the phone and import it.</string>
+    <string name="sample_text">Hello! This is Phonon, speaking on your phone, without the internet.</string>
+
+    <string name="not_installed">No voice model installed yet.</string>
+    <string name="loading">Loading the model…</string>
+    <string name="importing">Importing…</string>
+    <string name="copying">Copying %1$s…</string>
+    <string name="downloading">Downloading %1$s…\n%2$s</string>
+    <string name="downloading_start">Connecting to Hugging Face…</string>
+    <string name="ready">Ready.\nLanguages: %1$s\nVoices: %2$s</string>
+    <string name="load_failed">The model failed to load: %1$s</string>
+    <string name="import_failed">Import failed: %1$s</string>
+    <string name="download_failed">Download failed: %1$s</string>
+    <string name="sample_failed">The engine did not start. Is the model loaded?</string>
+</resources>

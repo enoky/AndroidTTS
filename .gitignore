@@ -1,0 +1,23 @@
+# Gradle and Android Studio
+.gradle/
+.kotlin/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.cxx/
+
+# libptts_ffi.so is built from source (scripts/build-native.sh), never committed.
+app/src/main/jniLibs/
+
+# Model weights are downloaded by the app on the phone, never committed.
+*.gguf
+*.safetensors
+
+# Signing keys stay out of the repo (see README.md, "Signing").
+*.jks
+*.keystore
+*.p12
+
+.DS_Store
