@@ -154,15 +154,27 @@ object Model {
                 load(context)
             }
         }
-        await(context)
-        val failed = state as? State.Failed ?: return added
+        // Decided on the load's outcome, however long it takes: await() gives up after a minute,
+        // and a slow load that then failed would leave the engine broken with the new voices in.
+        if (settled(context)) return added
+        val error = (state as? State.Failed)?.message ?: "it did not load"
         synchronized(this) {
             unload()
             VoiceStore.remove(dir, added.map { it.name })
             load(context)
         }
         await(context)
-        throw IOException("the model did not load with the new voices (${failed.message}), so they were removed")
+        throw IOException("the model did not load with the new voices ($error), so they were removed")
+    }
+
+    /** Wait for the load in progress to end, with no time limit, and say whether it succeeded. */
+    private fun settled(context: Context): Boolean {
+        try {
+            load(context)?.get()
+        } catch (e: Exception) {
+            Log.w(TAG, "waiting for the model failed", e)
+        }
+        return state is State.Ready
     }
 
     /** Delete every downloaded catalog voice and reload. Returns how many there were. */
