@@ -3,7 +3,17 @@ name: Android
 on:
   push:
   pull_request:
+  # Run by hand from the Actions tab. With a tag, it also publishes the build as that release.
   workflow_dispatch:
+    inputs:
+      release:
+        description: Publish this build as a release with this new tag, such as v0.2.0. Leave empty to only build.
+        required: false
+        default: ''
+        type: string
+  # A release published on GitHub, whose tag it creates, gets the APK attached (see "release").
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -107,11 +117,13 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
-  # Pushing a tag such as v0.1.0 publishes the APK as a GitHub release, which a phone can download
-  # directly (an Actions artifact comes zipped and needs a GitHub login).
+  # Attaches the APK to the release of a v* tag, which a phone can download directly (an Actions
+  # artifact comes zipped and needs a GitHub login). Publishing a release on GitHub creates the tag
+  # and the release; pushing a tag creates the release here. Both may run for one tag, so the
+  # asset has a fixed name and the second upload replaces the first.
   release:
     name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release != '')
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -122,9 +134,24 @@ jobs:
         with:
           name: AndroidTTS-apk
           path: dist
-      - name: Create the release
+      - name: Attach the APK
         env:
           GH_TOKEN: ${{ github.token }}
+          # The typed-in tag for a manual run, else the tag this run is for. Passed as a variable,
+          # never pasted into the script, so whatever is typed stays text.
+          TAG: ${{ inputs.release || github.ref_name }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "dist/AndroidTTS-${GITHUB_RUN_NUMBER}.apk" \
-            --repo "$GITHUB_REPOSITORY" --title "AndroidTTS $GITHUB_REF_NAME" --generate-notes
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::A release tag looks like v1.2.3 or v1.2.3-beta.1, not '$TAG'."
+            exit 1
+          fi
+          apk="AndroidTTS-$TAG.apk"
+          cp "dist/AndroidTTS-${GITHUB_RUN_NUMBER}.apk" "$apk"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            # A new tag is created on the commit this run built. (Releases made with this run's
+            # token start no further workflow runs, so this does not run twice.)
+            gh release create "$TAG" "$apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "AndroidTTS $TAG" --generate-notes
+          fi

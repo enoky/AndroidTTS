@@ -47,6 +47,13 @@ license.
 - License: Apache 2.0
 - Not distributed with this project: the app downloads the files at runtime.
 
+## Phonon voice catalog
+
+- Source: https://huggingface.co/gradium/phonon-voices, commit `da6c9ec0d47be8df5c87c730a3aa97187f3229c3`
+- License: the catalog's own terms, as its Hugging Face page states. Upstream says only that voices
+  "are distributed separately and have their own terms".
+- Not distributed with this project: the app downloads the voices at runtime, when asked.
+
 ## JNA
 
 - Source: https://github.com/java-native-access/jna, `net.java.dev.jna:jna:5.17.0`

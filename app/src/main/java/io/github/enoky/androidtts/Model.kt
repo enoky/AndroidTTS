@@ -1,4 +1,5 @@
-// Adapted from gradium-ai/xn-ptts android/tts-engine (MIT OR Apache-2.0), commit e5110afd.
+// Adapted from gradium-ai/xn-ptts android/tts-engine (MIT OR Apache-2.0), commit e5110afd, with
+// catalog voices, reloading and a preferred voice added.
 package io.github.enoky.androidtts
 
 import android.content.Context
@@ -6,6 +7,7 @@ import android.system.Os
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -13,7 +15,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * The installed checkpoint and the model loaded from it, shared by the service and the settings
- * screen, which run in one process. The model is loaded once, off the main thread, and kept.
+ * screen, which run in one process. The model is loaded once, off the main thread, and kept until
+ * its files change.
  */
 object Model {
     private const val TAG = "PhononModel"
@@ -25,10 +28,7 @@ object Model {
     )
 
     /** Loaded models. Calls into one must hold its lock: the library takes one call at a time. */
-    class Loaded(val tts: PhononTTS, val speakers: List<String>, val languages: List<String>) {
-        /** The voice spoken when a request names none: `default` if the checkpoint has one. */
-        val defaultSpeaker = if ("default" in speakers) "default" else speakers.firstOrNull()
-    }
+    class Loaded(val tts: PhononTTS, val voices: VoiceSet, val languages: List<String>)
 
     sealed class State {
         object NotInstalled : State()
@@ -75,7 +75,7 @@ object Model {
             state = State.NotInstalled
             return null
         }
-        val dir = dir(context).path
+        val dir = dir(context)
         val languages = languages(context)
         state = State.Loading
         pending = loader.submit {
@@ -85,8 +85,8 @@ object Model {
                 // 1 + 3 fast cores and 4 slow ones). A value already set wins.
                 Os.setenv("RAYON_NUM_THREADS", THREADS.toString(), false)
                 // Text is normalized per request with setLanguage; this is only the first one.
-                val tts = PhononTTS(dir, languages.firstOrNull() ?: "none")
-                State.Ready(Loaded(tts, tts.voices, languages))
+                val tts = PhononTTS(dir.path, languages.firstOrNull() ?: "none")
+                State.Ready(Loaded(tts, VoiceSet(tts.voices, VoiceStore.read(dir)), languages))
             } catch (t: Throwable) {
                 Log.e(TAG, "loading $dir failed", t)
                 State.Failed(t.message ?: t.toString())
@@ -109,7 +109,8 @@ object Model {
      * Replace the installed checkpoint with what [fill] writes into an empty folder, then load
      * it. [fill] runs on the calling thread, which must not be the main one. This is the one way
      * in: the folder import (SettingsActivity) and the download (ModelDownload) are both a [fill].
-     * If [fill] throws, the installed checkpoint is left as it was.
+     * If [fill] throws, the installed checkpoint is left as it was. Downloaded catalog voices
+     * move to the new checkpoint, unless it has voices of the same names.
      */
     fun install(context: Context, fill: (File) -> Unit) {
         val staging = File(context.filesDir, "model.staging")
@@ -127,6 +128,7 @@ object Model {
             // between unloading it and replacing it.
             synchronized(this) {
                 unload()
+                VoiceStore.carryOver(dir(context), staging)
                 dir(context).deleteRecursively()
                 check(staging.renameTo(dir(context))) { "could not move the checkpoint into place" }
             }
@@ -134,6 +136,59 @@ object Model {
             staging.deleteRecursively()
         }
         load(context)
+    }
+
+    /**
+     * Install the catalog voices [entries], whose files are in [staging] as `<name>.safetensors`,
+     * and reload the model with them. The library loads every voice file with the model, so one
+     * it cannot read would stop the engine: if the model fails to load with the new voices, they
+     * are removed again, the model goes back to the voices it had, and this throws.
+     */
+    fun addCatalogVoices(context: Context, staging: File, entries: List<VoiceCatalog.Entry>): List<VoiceCatalog.Entry> {
+        val dir = dir(context)
+        val added = synchronized(this) {
+            unload()
+            try {
+                VoiceStore.add(dir, staging, entries)
+            } finally {
+                load(context)
+            }
+        }
+        // Decided on the load's outcome, however long it takes: await() gives up after a minute,
+        // and a slow load that then failed would leave the engine broken with the new voices in.
+        if (settled(context)) return added
+        val error = (state as? State.Failed)?.message ?: "it did not load"
+        synchronized(this) {
+            unload()
+            VoiceStore.remove(dir, added.map { it.name })
+            load(context)
+        }
+        await(context)
+        throw IOException("the model did not load with the new voices ($error), so they were removed")
+    }
+
+    /** Wait for the load in progress to end, with no time limit, and say whether it succeeded. */
+    private fun settled(context: Context): Boolean {
+        try {
+            load(context)?.get()
+        } catch (e: Exception) {
+            Log.w(TAG, "waiting for the model failed", e)
+        }
+        return state is State.Ready
+    }
+
+    /** Delete every downloaded catalog voice and reload. Returns how many there were. */
+    fun removeCatalogVoices(context: Context): Int {
+        val dir = dir(context)
+        val count = synchronized(this) {
+            unload()
+            val names = VoiceStore.read(dir).keys
+            VoiceStore.remove(dir, names)
+            load(context)
+            names.size
+        }
+        await(context)
+        return count
     }
 
     /** Free the loaded model, once whatever is speaking with it has finished. */
@@ -144,6 +199,16 @@ object Model {
         state = State.NotInstalled
         pending = null
     }
+
+    /** The voice chosen in the app, spoken when a request names none and it speaks the language. */
+    fun preferredVoice(context: Context): String? = prefs(context).getString(PREF_VOICE, null)
+
+    fun setPreferredVoice(context: Context, name: String) {
+        prefs(context).edit().putString(PREF_VOICE, name).apply()
+    }
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** A language as Android names it, two or three letters, to one of [SUPPORTED], or null. */
     fun code(language: String?): String? {
@@ -163,4 +228,6 @@ object Model {
     /** Upstream's measured default for phones. Measure on the phone before raising it. */
     private const val THREADS = 2
     private const val LOAD_TIMEOUT_S = 60L
+    private const val PREFS = "settings"
+    private const val PREF_VOICE = "default_voice"
 }

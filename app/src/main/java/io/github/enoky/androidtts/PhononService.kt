@@ -1,4 +1,5 @@
-// Adapted from gradium-ai/xn-ptts android/tts-engine (MIT OR Apache-2.0), commit e5110afd.
+// Adapted from gradium-ai/xn-ptts android/tts-engine (MIT OR Apache-2.0), commit e5110afd, with
+// per-language voices, catalog locales and the app's preferred voice added.
 package io.github.enoky.androidtts
 
 import android.media.AudioFormat
@@ -15,8 +16,8 @@ import kotlin.math.roundToInt
  * Phonon as a system text-to-speech engine. Android calls [onSynthesizeText] on one thread, one
  * request at a time, and [onStop] from another to cut the current one short.
  *
- * Android voices are named `<language>-<speaker>`: every checkpoint voice in every language the
- * checkpoint speaks.
+ * Android voices are named `<language>-<speaker>`: each voice in each language it speaks (see
+ * [VoiceSet.forLanguage]), with the catalog's locale, such as en-GB, when it gives one.
  */
 class PhononService : TextToSpeechService() {
     @Volatile private var stopped = false
@@ -31,7 +32,7 @@ class PhononService : TextToSpeechService() {
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int {
         val code = Model.code(lang) ?: return TextToSpeech.LANG_NOT_SUPPORTED
         if (!Model.installed(this)) return TextToSpeech.LANG_MISSING_DATA
-        // The checkpoints have no regional variants, so a country never matches more closely.
+        // Voices may carry a country, but every voice of a language speaks for all its countries.
         return if (code in Model.languages(this)) TextToSpeech.LANG_AVAILABLE else TextToSpeech.LANG_NOT_SUPPORTED
     }
 
@@ -48,7 +49,7 @@ class PhononService : TextToSpeechService() {
 
     override fun onGetVoices(): List<Voice> {
         val model = Model.await(this) ?: return emptyList()
-        return model.languages.flatMap { lang -> speakers(model).map { voice(lang, it) } }
+        return model.languages.flatMap { lang -> offered(model, lang).map { voice(model, lang, it) } }
     }
 
     override fun onIsValidVoiceName(voiceName: String?): Int =
@@ -60,7 +61,7 @@ class PhononService : TextToSpeechService() {
         val code = Model.code(lang) ?: return null
         val model = Model.await(this) ?: return null
         if (code !in model.languages) return null
-        return name(code, model.defaultSpeaker ?: NO_SPEAKER)
+        return name(code, defaultSpeaker(model, code) ?: NO_SPEAKER)
     }
 
     override fun onStop() {
@@ -76,7 +77,7 @@ class PhononService : TextToSpeechService() {
         }
         // A voice the request names wins; otherwise its language, spoken by the default voice.
         val (lang, speaker) = parse(request.voiceName)
-            ?: Model.code(request.language)?.takeIf { it in model.languages }?.let { it to model.defaultSpeaker }
+            ?: Model.code(request.language)?.takeIf { it in model.languages }?.let { it to defaultSpeaker(model, it) }
             ?: run {
                 fail(callback, TextToSpeech.ERROR_INVALID_REQUEST)
                 return
@@ -118,21 +119,26 @@ class PhononService : TextToSpeechService() {
         callback.done()
     }
 
-    /** The speakers to offer: the checkpoint's voices, or one stand-in when it has none. */
-    private fun speakers(model: Model.Loaded) = model.speakers.ifEmpty { listOf(NO_SPEAKER) }
+    private fun defaultSpeaker(model: Model.Loaded, lang: String) =
+        model.voices.defaultFor(lang, Model.preferredVoice(this))
+
+    /** The speakers to offer in [lang]: its voices, or one stand-in when the model has none. */
+    private fun offered(model: Model.Loaded, lang: String) =
+        model.voices.forLanguage(lang).ifEmpty { listOf(NO_SPEAKER) }
 
     private fun name(lang: String, speaker: String) = "$lang-$speaker"
 
-    private fun voice(lang: String, speaker: String) = Voice(
-        name(lang, speaker), Locale.forLanguageTag(lang), Voice.QUALITY_HIGH, Voice.LATENCY_LOW, false, emptySet(),
+    private fun voice(model: Model.Loaded, lang: String, speaker: String) = Voice(
+        name(lang, speaker), model.voices.locale(lang, speaker), Voice.QUALITY_HIGH, Voice.LATENCY_LOW, false,
+        emptySet(),
     )
 
     /** A voice name as [name] writes it, to its language and speaker, or null if not ours. */
     private fun parse(voiceName: String?): Pair<String, String?>? {
         val (lang, speaker) = voiceName?.split('-', limit = 2)?.takeIf { it.size == 2 } ?: return null
         val model = Model.await(this) ?: return null
-        if (lang !in model.languages || speaker !in speakers(model)) return null
-        return lang to speaker.takeIf { it in model.speakers }
+        if (lang !in model.languages || speaker !in offered(model, lang)) return null
+        return lang to speaker.takeIf { it in model.voices.names }
     }
 
     private companion object {

@@ -18,7 +18,7 @@ android {
         targetSdk = 36
         // Each CI run gets a higher version code, so a newer APK installs over an older one.
         versionCode = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 1
-        versionName = "0.1.0"
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // libptts_ffi.so is built for these two only. JNA ships more ABIs, and without this filter
         // the app would install on 32-bit phones, where Phonon cannot load.

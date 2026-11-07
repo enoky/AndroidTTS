@@ -5,22 +5,59 @@
 
     <string name="download">Download the voice model (Phonon 31M, English)</string>
     <string name="download_again">Download the voice model again</string>
+    <string name="download_voices">Download all voices</string>
     <string name="cancel_download">Cancel download</string>
     <string name="play_sample">Play a sample</string>
     <string name="import_folder">Import a checkpoint folder instead</string>
     <string name="system_settings">Open the system text-to-speech settings</string>
-    <string name="help">1. Download the voice model (a one-time download of a few tens of megabytes; Wi-Fi recommended). The internet is used only for this.\n2. Tap \"Play a sample\" to check it.\n3. Open the system text-to-speech settings and choose this app as the preferred engine.\n\nTo use another Phonon checkpoint, put its config.json, tokenizer.json, model.q8.gguf (or model.safetensors) and voices/ in a folder on the phone and import it.</string>
+    <string name="remove_voices">Remove downloaded voices</string>
+    <string name="remove">Remove</string>
+    <string name="help">1. Download the voice model (a one-time download of a few tens of megabytes; Wi-Fi recommended). The internet is used only for downloads.\n2. Optionally, download all voices from Gradium\'s voice catalog, and pick the one you like.\n3. Open the system text-to-speech settings and choose this app as the preferred engine.\n\nTo use another Phonon checkpoint, put its config.json, tokenizer.json, model.q8.gguf (or model.safetensors) and voices/ in a folder on the phone and import it. Downloaded voices are kept.</string>
     <string name="sample_text">Hello! This is Phonon, speaking on your phone, without the internet.</string>
+
+    <string name="voices_header">Voices (%1$d)</string>
+    <string name="voices_header_none">Voices</string>
+    <string name="voices_hint">Tap a voice to hear it and make it the default; ▶ only plays it. Apps that are already open switch to a new default the next time they set their language, or when restarted.</string>
+    <string name="voice_built_in">Built into the model</string>
+    <string name="play_symbol">▶</string>
+    <string name="play_voice">Play %1$s</string>
 
     <string name="not_installed">No voice model installed yet.</string>
     <string name="loading">Loading the model…</string>
     <string name="importing">Importing…</string>
     <string name="copying">Copying %1$s…</string>
-    <string name="downloading">Downloading %1$s…\n%2$s</string>
+    <string name="removing_voices">Removing the downloaded voices…</string>
+    <string name="downloading_model">Downloading the voice model</string>
+    <string name="downloading_voices">Downloading voices</string>
     <string name="downloading_start">Connecting to Hugging Face…</string>
-    <string name="ready">Ready.\nLanguages: %1$s\nVoices: %2$s</string>
+    <string name="ready">Ready.\nLanguages: %1$s\nVoices: %2$d</string>
     <string name="load_failed">The model failed to load: %1$s</string>
     <string name="import_failed">Import failed: %1$s</string>
     <string name="download_failed">Download failed: %1$s</string>
+    <string name="voices_failed">The voice download failed: %1$s</string>
+    <string name="remove_failed">Removing the voices failed: %1$s</string>
     <string name="sample_failed">The engine did not start. Is the model loaded?</string>
+
+    <string name="voices_need_model">Download the voice model first.</string>
+    <string name="voices_reading_catalog">Reading the voice catalog…</string>
+    <string name="voices_step">%1$d of %2$d: %3$s</string>
+    <string name="voices_installing">Loading the model with the new voices…</string>
+    <string name="voices_none_in_catalog">The voice catalog has no voices in %1$s.</string>
+
+    <plurals name="voices_all_installed">
+        <item quantity="one">The catalog\'s %1$d voice for this model is installed already.</item>
+        <item quantity="other">All %1$d catalog voices for this model are installed already.</item>
+    </plurals>
+    <plurals name="voices_added">
+        <item quantity="one">Added %1$d voice (%2$s).</item>
+        <item quantity="other">Added %1$d voices (%2$s).</item>
+    </plurals>
+    <plurals name="voices_failed">
+        <item quantity="one">%1$d voice could not be downloaded: %2$s. Tap \"Download all voices\" again to retry.</item>
+        <item quantity="other">%1$d voices could not be downloaded: %2$s. Tap \"Download all voices\" again to retry.</item>
+    </plurals>
+    <plurals name="remove_voices_confirm">
+        <item quantity="one">Remove the %1$d downloaded voice? You can download it again later.</item>
+        <item quantity="other">Remove the %1$d downloaded voices? You can download them again later.</item>
+    </plurals>
 </resources>
