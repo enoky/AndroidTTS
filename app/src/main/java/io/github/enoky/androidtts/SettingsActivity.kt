@@ -1,5 +1,5 @@
 // Adapted from gradium-ai/xn-ptts android/tts-engine (MIT OR Apache-2.0), commit e5110afd, with
-// the model and voice downloads, the voice list and the samples added.
+// the model and voice downloads, voice file import, the voice list and the samples added.
 package io.github.enoky.androidtts
 
 import android.app.Activity
@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
@@ -18,6 +19,8 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.Button
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.ScrollView
@@ -28,14 +31,15 @@ import kotlin.concurrent.thread
 
 /**
  * The engine's settings, which the system text-to-speech settings open: what is installed, the
- * model and voice downloads, the voices to hear and choose the default from, and a way to install
- * a checkpoint folder from the phone's storage instead. Android's own settings have no voice
+ * model and voice downloads, the import of a voice file such as a cloned voice, the voices to
+ * hear and choose the default from, and a way to install a checkpoint folder instead. Android's own settings have no voice
  * picker for an engine, so the default voice is chosen here.
  */
 class SettingsActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var modelButton: Button
     private lateinit var voicesButton: Button
+    private lateinit var importVoiceButton: Button
     private lateinit var sampleButton: Button
     private lateinit var removeVoicesButton: Button
     private lateinit var importButton: Button
@@ -76,6 +80,10 @@ class SettingsActivity : Activity() {
                 else -> {}
             }
         }
+        importVoiceButton = button(R.string.import_voice) {
+            val pick = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+            startActivityForResult(pick, PICK_VOICE)
+        }
         sampleButton = button(R.string.play_sample) { playSample() }
         val systemSettings = button(R.string.system_settings) { openTtsSettings() }
         voicesHeader = TextView(this).apply {
@@ -100,7 +108,7 @@ class SettingsActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             for (v in listOf(
-                title, subtitle, status, modelButton, voicesButton, sampleButton, systemSettings,
+                title, subtitle, status, modelButton, voicesButton, importVoiceButton, sampleButton, systemSettings,
                 voicesHeader, voicesHint, voiceList, removeVoicesButton, importButton, help,
             )) {
                 addView(v, MATCH_PARENT, WRAP_CONTENT)
@@ -135,6 +143,7 @@ class SettingsActivity : Activity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == PICK_VOICE && resultCode == RESULT_OK) data?.data?.let { askVoiceName(it) }
         val tree = data?.data
         if (requestCode != PICK || resultCode != RESULT_OK || tree == null) return
         importing = getString(R.string.importing)
@@ -182,9 +191,10 @@ class SettingsActivity : Activity() {
         modelButton.isEnabled = !other && (job == null || job == Downloads.Job.MODEL)
         voicesButton.text = getString(if (job == Downloads.Job.VOICES) R.string.cancel_download else R.string.download_voices)
         voicesButton.isEnabled = !other && (job == Downloads.Job.VOICES || (job == null && ready != null))
+        importVoiceButton.isEnabled = !busy && ready != null
         sampleButton.isEnabled = !busy && ready != null
         importButton.isEnabled = !busy
-        removeVoicesButton.visibility = if ((ready?.voices?.catalog?.size ?: 0) > 0) View.VISIBLE else View.GONE
+        removeVoicesButton.visibility = if ((ready?.voices?.catalogCount ?: 0) > 0) View.VISIBLE else View.GONE
         removeVoicesButton.isEnabled = !busy
 
         val model = when (val s = Model.state) {
@@ -200,7 +210,11 @@ class SettingsActivity : Activity() {
             download is Downloads.State.Done -> download.message + "\n\n" + model
             // A failed download leaves what was installed before: say both.
             download is Downloads.State.Failed -> getString(
-                if (download.job == Downloads.Job.MODEL) R.string.download_failed else R.string.voices_failed,
+                when (download.job) {
+                    Downloads.Job.MODEL -> R.string.download_failed
+                    Downloads.Job.VOICES -> R.string.voices_failed
+                    Downloads.Job.IMPORT -> R.string.import_voice_failed
+                },
                 download.message,
             ) + "\n\n" + model
             else -> model
@@ -212,7 +226,11 @@ class SettingsActivity : Activity() {
 
     private fun progress(download: Downloads.State.Running): String {
         val title = getString(
-            if (download.job == Downloads.Job.MODEL) R.string.downloading_model else R.string.downloading_voices,
+            when (download.job) {
+                Downloads.Job.MODEL -> R.string.downloading_model
+                Downloads.Job.VOICES -> R.string.downloading_voices
+                Downloads.Job.IMPORT -> R.string.importing_voice
+            },
         )
         val detail = download.detail ?: getString(R.string.downloading_start)
         val amount = when {
@@ -254,7 +272,11 @@ class SettingsActivity : Activity() {
     private fun voiceRow(model: Model.Loaded, lang: String, name: String, isDefault: Boolean): View {
         val locale = model.voices.locale(lang, name)
         val details = listOfNotNull(
-            if (model.voices.isCatalog(name)) model.voices.description(name) else getString(R.string.voice_built_in),
+            when {
+                model.voices.isImported(name) -> getString(R.string.voice_yours)
+                model.voices.isCatalog(name) -> model.voices.description(name)
+                else -> getString(R.string.voice_built_in)
+            },
             locale.displayCountry.takeIf { it.isNotEmpty() },
         )
         val radio = RadioButton(this).apply {
@@ -271,12 +293,18 @@ class SettingsActivity : Activity() {
             contentDescription = getString(R.string.play_voice, name)
             setOnClickListener { preview(lang, name) }
         }
+        val remove = if (!model.voices.isImported(name)) null else Button(this).apply {
+            text = getString(R.string.remove_symbol)
+            contentDescription = getString(R.string.remove_voice, name)
+            setOnClickListener { confirmRemoveVoice(name) }
+        }
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, pad / 4, 0, pad / 4)
             addView(radio, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
             addView(play, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT))
+            remove?.let { addView(it, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)) }
         }
     }
 
@@ -332,21 +360,29 @@ class SettingsActivity : Activity() {
     }
 
     private fun confirmRemoveVoices() {
-        val count = (Model.state as? Model.State.Ready)?.model?.voices?.catalog?.size ?: return
+        val count = (Model.state as? Model.State.Ready)?.model?.voices?.catalogCount ?: return
         AlertDialog.Builder(this)
             .setMessage(resources.getQuantityString(R.plurals.remove_voices_confirm, count, count))
-            .setPositiveButton(R.string.remove) { _, _ -> removeVoices() }
+            .setPositiveButton(R.string.remove) { _, _ -> removeVoices { !it.imported } }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun removeVoices() {
+    private fun confirmRemoveVoice(name: String) {
+        AlertDialog.Builder(this)
+            .setMessage(getString(R.string.remove_voice_confirm, name))
+            .setPositiveButton(R.string.remove) { _, _ -> removeVoices { it.imported && it.name == name } }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun removeVoices(which: (VoiceCatalog.Entry) -> Boolean) {
         removing = true
         refresh()
         val app = applicationContext
         thread {
             val error = try {
-                Model.removeCatalogVoices(app)
+                Model.removeVoices(app, which)
                 null
             } catch (e: Exception) {
                 e.message ?: e.toString()
@@ -357,6 +393,55 @@ class SettingsActivity : Activity() {
                 if (error != null) status.text = getString(R.string.remove_failed, error)
             }
         }
+    }
+
+    /**
+     * Ask what to call the voice file at [uri], then import it. The name is checked as it is
+     * typed in: the dialog stays open on a name that cannot be used, saying why.
+     */
+    private fun askVoiceName(uri: Uri) {
+        val model = (Model.state as? Model.State.Ready)?.model ?: return
+        val fileName = displayName(uri)
+        val input = EditText(this).apply {
+            setSingleLine()
+            setText(VoiceImport.suggestName(fileName))
+            selectAll()
+        }
+        val frame = FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.import_voice_title)
+            .setMessage(R.string.import_voice_message)
+            .setView(frame)
+            .setPositiveButton(R.string.import_voice_ok, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val name = input.text.toString().trim()
+                when (VoiceImport.check(name, model.voices.names)) {
+                    VoiceImport.NameProblem.INVALID -> input.error = getString(R.string.voice_name_invalid)
+                    VoiceImport.NameProblem.TAKEN -> input.error = getString(R.string.voice_name_taken, name)
+                    null -> {
+                        dialog.dismiss()
+                        Downloads.importVoice(this, uri, fileName, name)
+                        refresh()
+                    }
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    /** What the document at [uri] is called, as its provider names it. */
+    private fun displayName(uri: Uri): String? = try {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        }
+    } catch (e: Exception) {
+        null
     }
 
     /** Copy the files a checkpoint folder needs from the picked folder into [into]. */
@@ -400,6 +485,7 @@ class SettingsActivity : Activity() {
 
     private companion object {
         const val PICK = 1
+        const val PICK_VOICE = 2
 
         /** What a checkpoint folder holds. */
         val FILES = setOf("config.json", "tokenizer.json", "model.q8.gguf", "model.safetensors", "default-voice.safetensors")

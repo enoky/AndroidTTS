@@ -109,8 +109,8 @@ object Model {
      * Replace the installed checkpoint with what [fill] writes into an empty folder, then load
      * it. [fill] runs on the calling thread, which must not be the main one. This is the one way
      * in: the folder import (SettingsActivity) and the download (ModelDownload) are both a [fill].
-     * If [fill] throws, the installed checkpoint is left as it was. Downloaded catalog voices
-     * move to the new checkpoint, unless it has voices of the same names.
+     * If [fill] throws, the installed checkpoint is left as it was. Downloaded and imported
+     * voices move to the new checkpoint, unless it has voices of the same names.
      */
     fun install(context: Context, fill: (File) -> Unit) {
         val staging = File(context.filesDir, "model.staging")
@@ -139,12 +139,13 @@ object Model {
     }
 
     /**
-     * Install the catalog voices [entries], whose files are in [staging] as `<name>.safetensors`,
-     * and reload the model with them. The library loads every voice file with the model, so one
-     * it cannot read would stop the engine: if the model fails to load with the new voices, they
-     * are removed again, the model goes back to the voices it had, and this throws.
+     * Install the voices [entries], from the catalog or imported, whose files are in [staging] as
+     * `<name>.safetensors`, and reload the model with them. The library loads every voice file
+     * with the model, so one it cannot read would stop the engine: if the model fails to load
+     * with the new voices, they are removed again, the model goes back to the voices it had, and
+     * this throws.
      */
-    fun addCatalogVoices(context: Context, staging: File, entries: List<VoiceCatalog.Entry>): List<VoiceCatalog.Entry> {
+    fun addVoices(context: Context, staging: File, entries: List<VoiceCatalog.Entry>): List<VoiceCatalog.Entry> {
         val dir = dir(context)
         val added = synchronized(this) {
             unload()
@@ -177,14 +178,16 @@ object Model {
         return state is State.Ready
     }
 
-    /** Delete every downloaded catalog voice and reload. Returns how many there were. */
-    fun removeCatalogVoices(context: Context): Int {
+    /** Delete the added voices [which] picks, and reload if there were any. Returns how many. */
+    fun removeVoices(context: Context, which: (VoiceCatalog.Entry) -> Boolean): Int {
         val dir = dir(context)
         val count = synchronized(this) {
-            unload()
-            val names = VoiceStore.read(dir).keys
-            VoiceStore.remove(dir, names)
-            load(context)
+            val names = VoiceStore.read(dir).values.filter(which).map { it.name }
+            if (names.isNotEmpty()) {
+                unload()
+                VoiceStore.remove(dir, names)
+                load(context)
+            }
             names.size
         }
         await(context)

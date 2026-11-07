@@ -7,9 +7,9 @@ import java.io.IOException
 import java.util.Locale
 
 /**
- * The catalog voices installed in a checkpoint folder: each one's file in `voices/`, named after
- * the voice, which is how the native library finds voices, and what the catalog says about it
- * in [METADATA]. A voice in `voices/` without a record is the checkpoint's own.
+ * The voices added to a checkpoint folder, from the catalog or imported by the user: each one's
+ * file in `voices/`, named after the voice, which is how the native library finds voices, and a
+ * record of it in [METADATA]. A voice in `voices/` without a record is the checkpoint's own.
  */
 object VoiceStore {
     const val METADATA = "catalog-voices.json"
@@ -40,6 +40,7 @@ object VoiceStore {
                 locale = o.text("locale"),
                 description = o.text("description"),
                 voiceId = o.text("voice_id"),
+                imported = o.optBoolean("imported", false),
             )
         }
         return out
@@ -61,7 +62,8 @@ object VoiceStore {
                     .putOpt("language", e.language)
                     .putOpt("locale", e.locale)
                     .putOpt("description", e.description)
-                    .putOpt("voice_id", e.voiceId),
+                    .putOpt("voice_id", e.voiceId)
+                    .putOpt("imported", e.imported.takeIf { it }),
             )
         }
         val json = JSONObject().put("catalog", "${VoiceCatalog.REPO}@${VoiceCatalog.REVISION}").put("voices", list)
@@ -94,7 +96,7 @@ object VoiceStore {
         return added
     }
 
-    /** Delete the catalog voices [names], files and records. */
+    /** Delete the recorded voices [names], files and records. The checkpoint's own stay. */
     fun remove(modelDir: File, names: Collection<String>) {
         val recorded = read(modelDir)
         for (name in names) if (name in recorded) file(modelDir, name).delete()
@@ -102,7 +104,7 @@ object VoiceStore {
     }
 
     /**
-     * Move the catalog voices of [from], the checkpoint folder being replaced, into [into], the
+     * Move the added voices of [from], the checkpoint folder being replaced, into [into], the
      * one replacing it, unless it has a voice of that name, so a new checkpoint keeps them.
      */
     fun carryOver(from: File, into: File) {

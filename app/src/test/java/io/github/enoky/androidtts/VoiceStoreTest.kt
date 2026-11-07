@@ -88,6 +88,23 @@ class VoiceStoreTest {
     }
 
     @Test
+    fun recordsImportedVoicesApartAndCarriesThemOver() {
+        val model = tmp.newFolder("model")
+        val staging = tmp.newFolder("staging")
+        val me = Entry("Me", "a1b2c3.safetensors", imported = true)
+        stage(staging, "Me", "Zoey")
+        VoiceStore.add(model, staging, listOf(me, zoey))
+        assertEquals(me, VoiceStore.read(model).getValue("Me"))
+        assertFalse(VoiceStore.read(model).getValue("Zoey").imported)
+
+        val new = tmp.newFolder("new")
+        VoiceStore.carryOver(model, new)
+        assertEquals(me, VoiceStore.read(new).getValue("Me"))
+        VoiceStore.remove(new, listOf("Me"))
+        assertEquals(setOf("Zoey"), VoiceStore.read(new).keys)
+    }
+
+    @Test
     fun readsNothingFromABrokenRecord() {
         val model = tmp.newFolder("model")
         File(model, VoiceStore.METADATA).writeText("{not json")

@@ -15,7 +15,11 @@ object VoiceCatalog {
     const val REVISION = "da6c9ec0d47be8df5c87c730a3aa97187f3229c3"
     const val FILE = "voices.jsonl"
 
-    /** One voice of the catalog. [filename] is the voice file's path in the catalog repo. */
+    /**
+     * One voice of the catalog. [filename] is the voice file's path in the catalog repo. The app
+     * records the voice files the user imports the same way, with [imported] set and [filename]
+     * the name the file had.
+     */
     data class Entry(
         val name: String,
         val filename: String,
@@ -23,6 +27,7 @@ object VoiceCatalog {
         val locale: String? = null,
         val description: String? = null,
         val voiceId: String? = null,
+        val imported: Boolean = false,
     )
 
     /** The catalog's voices in file order. A line that is not a voice is skipped, not fatal. */

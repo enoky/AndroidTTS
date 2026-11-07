@@ -49,6 +49,19 @@ class VoiceCatalogTest {
     }
 
     @Test
+    fun neverTakesTheNameOfAnImportedVoice() {
+        val recorded = mapOf(
+            "Zoey" to Entry("Zoey", "zoey-clone.safetensors", imported = true),
+            "Ava" to Entry("Ava", "voices/b.safetensors", "en"),
+        )
+        val reserved = VoiceDownload.reserved(listOf("default", "Zoey", "Ava"), recorded)
+        assertEquals(listOf("default", "Zoey"), reserved)
+        val entries = listOf(Entry("Zoey", "voices/a.safetensors", "en"), Entry("Ava", "voices/b.safetensors", "en"))
+        // Ava came from the catalog, so it may be fetched again; the user's Zoey stays theirs.
+        assertEquals(listOf("Ava"), VoiceCatalog.select(entries, listOf("en"), reserved).map { it.name })
+    }
+
+    @Test
     fun tellsApartOneNameInTwoLanguages() {
         val entries = listOf(
             Entry("Alex", "voices/a.safetensors", "en"),

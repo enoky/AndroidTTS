@@ -11,8 +11,9 @@ Once installed and chosen as the preferred engine, every app that speaks through
   [gradium-ai/xn-ptts](https://github.com/gradium-ai/xn-ptts) at commit `e5110afd`, running on
   the CPU. Audio streams to Android as it is generated, at 24 kHz.
 - **Voices:** the model's built-in voice, plus, with one tap, every voice in Gradium's
-  [voice catalog](https://huggingface.co/gradium/phonon-voices) that the model can speak. Pick
-  the default voice in the app.
+  [voice catalog](https://huggingface.co/gradium/phonon-voices) that the model can speak, plus
+  your own cloned voice (see [Your own voice](#your-own-voice)). Pick the default voice in the
+  app.
 - **Privacy:** the internet permission is used only to download the model and voices. Text is
   never sent anywhere.
 
@@ -76,6 +77,34 @@ locale (en-US, en-GB, …), so apps that list voices by locale can show them pro
 system settings have no voice picker for an engine, so the voice an app gets when it doesn't
 ask for one is the one chosen in this app. Apps that are already running switch to a newly
 chosen voice the next time they set their language, or when restarted.
+
+## Your own voice
+
+Phonon can speak in your voice, or anyone's who agrees to it, from a voice file that Gradium
+makes from a short recording. The Phonon models on Hugging Face can't clone on their own, so
+cloning goes through Gradium. After that, the voice runs offline like any other.
+
+1. **Record about 10 seconds of clear speech:** a quiet room, one speaker, no music. Your phone's
+   recorder is fine.
+2. **Make the voice file.** Either:
+   - in [Gradium Studio](https://studio.gradium.ai), in any browser including the phone's: create
+     a voice from your recording, then on the voice tap **⋮ → Download for Phonon**; or
+   - on a computer, with a Gradium API key and [uv](https://docs.astral.sh/uv/):
+     ```sh
+     export GRADIUM_API_KEY=...
+     uv run https://raw.githubusercontent.com/gradium-ai/xn-ptts/main/scripts/clone-voice.py me.wav --lang en --name Me -o Me.safetensors
+     ```
+3. **Import it.** In the app, tap **Import a voice file**, pick the `.safetensors` file and name
+   the voice. Then tap it in the voice list to hear it and make it the default.
+
+Your recording is uploaded to Gradium to make the voice, and the voice is also kept in your
+Gradium account. Synthesis afterwards happens on the phone only.
+
+Imported voices are listed as "Your voice" and are offered in every language the model speaks.
+They're kept when the model is downloaded again, are never overwritten by a catalog download,
+and each has its own ✕ to remove it. The app checks that the file is a voice file, a valid
+safetensors file under 64 MB, before installing it. If the model then fails to load with it,
+it's removed again, just like a bad catalog voice.
 
 ## Limitations
 
@@ -159,7 +188,8 @@ and out of the repo. Local builds read the same names from environment variables
 | `app/src/main/java/.../ModelDownload.kt` | Which files make the Phonon 31M checkpoint |
 | `app/src/main/java/.../VoiceCatalog.kt` | Reads the voice catalog and picks the voices a model can speak |
 | `app/src/main/java/.../VoiceDownload.kt` | Downloads catalog voices, resumably, and installs them |
-| `app/src/main/java/.../VoiceStore.kt` | The installed catalog voices: files and records |
+| `app/src/main/java/.../VoiceImport.kt` | Imports a voice file, such as a cloned voice |
+| `app/src/main/java/.../VoiceStore.kt` | The added voices, from the catalog or imported: files and records |
 | `app/src/main/java/.../VoiceSet.kt` | Which voices each language offers, and the default |
 | `app/src/main/java/.../Downloads.kt` | Runs one download at a time and reports progress |
 | `app/src/main/java/.../SettingsActivity.kt` | The app screen: downloads, voice list, samples, folder import |
